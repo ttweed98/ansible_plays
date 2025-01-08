@@ -1,0 +1,59 @@
+- name: Ensure Interface Descriptions Are Correct on Cisco Devices
+  hosts: core
+  gather_facts: no
+  tasks:
+
+    - name: Read Neighbor File
+      slurp:
+        src: "/home/ttweed98/ansible_example/ansible_plays/{{ inventory_hostname }}_neighbors.yaml"
+      register: neighbor_file
+
+    - name: Parse Neighbor Data
+      set_fact:
+        neighbor_data: "{{ neighbor_file['content'] | b64decode | from_yaml }}"
+
+    - name: Read Interface Configuration
+      slurp:
+        src: "/home/ttweed98/ansible_example/ansible_plays/{{ inventory_hostname }}/GigabitEthernet0_1_config.txt"
+      register: config_file
+
+    - name: Extract Config Lines
+      set_fact:
+        config_lines: "{{ config_file['content'] | b64decode | split('\n') }}"
+
+    - name: Identify Interfaces Needing Updates
+      set_fact:
+        updated_interfaces: []
+
+    - name: Process Configuration Lines
+      set_fact:
+        iface: "{{ line.split(' ')[1] if line.startswith('interface ') else iface }}"
+      loop: "{{ config_lines }}"
+      loop_control:
+        loop_var: line
+      when: "'interface ' in line"
+
+    - name: Check Interface Descriptions
+      set_fact:
+        updated_interfaces: "{{ updated_interfaces + [{'interface': iface, 'expected_desc': 'CX: ' + device['Neighbor'] + '_' + device['Remote_Port']}] }}"
+      loop: "{{ neighbor_data['Devices'] }}"
+      loop_control:
+        loop_var: device
+      when:
+        - "device['Local_Port'] == iface"
+        - "config_lines | select('search', '^description ') | list | length == 0 or (config_lines | select('search', '^description ') | list | first is not match('CX: ' + device['Neighbor'] + '_' + device['Remote_Port']))"
+
+    - name: Print Interfaces Needing Updates
+      debug:
+        msg: "{{ updated_interfaces }}"
+
+    - name: Generate CLI Commands for Cisco Devices
+      set_fact:
+        cli_commands: >
+          {{ updated_interfaces | map(attribute='interface') | map('regex_replace', '^', 'interface ') | list + 
+            updated_interfaces | map(attribute='expected_desc') | map('regex_replace', '^', ' description ') | list }}
+
+    - name: Apply Configurations to Cisco Devices
+      ios_config:
+        lines: "{{ cli_commands }}"
+      when: cli_commands | length > 0

@@ -1,0 +1,7 @@
+Building configuration...
+
+Current configuration : 54 bytes
+!
+interface GigabitEthernet1/2
+ negotiation auto
+end

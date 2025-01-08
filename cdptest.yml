@@ -5,6 +5,16 @@
   connection: network_cli
 
   tasks:
+    - name: "Task 1: Get Hostname Output"
+      ios_command:
+        commands:
+          - show run | include hostname
+      register: hostname
+
+    - name: "Extract Hostname"
+      set_fact:
+        device_hostname: "{{ hostname.stdout_lines[0] | select('search', '^hostname\\s+') | map('regex_replace', '^hostname\\s+', '') | list | first | default('') }}"
+
     - name: "RUN PARSER WITH TEXTFSM"
       ansible.utils.cli_parse:
         command: "show cdp neighbors detail"
@@ -16,19 +26,24 @@
     - name: "LIST ATTACHED CISCO DEVICES"
       set_fact: 
         IOS: "{{ neighbor_data | selectattr('NEIGHBOR_DESCRIPTION', 'contains', 'Cisco')}}"
-    
-    # - name: "PRINT NEIGHBOR DATA"
-    #   debug:
-    #     msg: "{{ IOS }}"
-    
+       
     - name: "CREATE A LIST OF NEIGHBOR HOSTS"
       set_fact:
         devices: "{{ IOS | map(attribute='NEIGHBOR_NAME') | unique }}"
+
+    - name: Create a list of devices for each host
+      set_fact:
+        devices_for_host: |
+          Devices:
+            {% for device in devices %}
+              - Hostname: {{ device_hostname }}
+                  Neighbor: {{ device }}
+                  Local_Port: {{ IOS | selectattr('NEIGHBOR_NAME', 'equalto', device) | map(attribute='LOCAL_INTERFACE') | unique | first }}
+                  Remote_Port: {{ IOS | selectattr('NEIGHBOR_NAME', 'equalto', device) | map(attribute='NEIGHBOR_INTERFACE') | unique | first }}
+            {% endfor %}
     
-    - name: "CREATE REMOTE HOSTS FILE"
-      template: src=remote_hosts.j2 dest=/home/ttweed98/ansible_example/ansible_plays/remote_hosts.yml
-      loop: "{{ devices }}"
-    
-    # - name: "PRINT NEIGHBOR DATA"
-    #   debug:
-    #     msg: "{{ devices }}"
+    - name: Save devices data into a YAML file
+      copy:
+        content: "{{ devices_for_host }}"
+        dest: "/home/ttweed98/ansible_example/ansible_plays/{{ device_hostname }}_neighbors.yaml"
+      delegate_to: localhost
