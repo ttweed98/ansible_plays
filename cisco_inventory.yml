@@ -1,0 +1,36 @@
+---
+
+- name: Run Pre-tasks on Cisco Devices
+  hosts: all
+  gather_facts: false
+  connection: network_cli
+  pre_tasks:
+
+    - name: Pre-Task 1 - Test Network Connectivity to Cisco Devices
+      cisco.ios.ios_ping:
+        dest: 10.0.0.1
+        count: 4
+      vars:
+        ansible_command_timeout: 180
+      register: "ping_output"
+        
+    - name: Save Output of Ping as Fact
+      set_fact: "ping_output"
+    
+    - name: Pre-Task 2 - Test SSH Connection to Network Devices
+      cisco.ios.ios_command:
+        commands:
+          - show version
+      register: version
+      when: "ping_output is success"
+    
+    - name: Save Output of SSH ac Fact
+      set_fact: version
+
+- hosts: all
+  connection: network_cli
+  roles:
+    - cdp
+    
+
+        

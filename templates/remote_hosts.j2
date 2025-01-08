@@ -1,0 +1,8 @@
+---
+Devices:
+{% for device in devices %}
+  Hostname: {{ inventory_hostname }}
+    - Neighbor: {{ device }}
+        Local_Port: {{ IOS | selectattr('NEIGHBOR_NAME', 'equalto', device) | map(attribute='LOCAL_INTERFACE') | unique | first }}
+        Remote_Port: {{ IOS | selectattr('NEIGHBOR_NAME', 'equalto', device) | map(attribute='NEIGHBOR_INTERFACE') | unique | first }}
+{% endfor %}

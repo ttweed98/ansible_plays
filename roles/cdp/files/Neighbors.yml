@@ -1,0 +1,10 @@
+---
+Devices:
+  Hostname: CORE1
+    - NEIGHBOR_NAME: SW2.cisco.com
+      LocalInterface: Gi1/2
+      NEIGHBOR_INTERFACE: Gi0/1
+    - NEIGHBOR_NAME: SW1.cisco.com
+      LocalInterface: Gi1/1
+      NEIGHBOR_INTERFACE: Gi0/1
+  

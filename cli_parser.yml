@@ -1,0 +1,51 @@
+---
+
+- name: "Parse information from Network Device"
+  hosts: core
+  connection: network_cli
+  gather_facts: no
+  roles:
+    - ansible-network.network-engine
+
+  tasks:
+    - name: "Task 1: Get Hostname Output"
+      ios_command:
+        commands:
+          - show run | include hostname
+      register: hostname
+
+    - name: "Extract Hostname"
+      set_fact:
+        device_hostname: "{{ hostname.stdout_lines[0] | select('search', '^hostname\\s+') | map('regex_replace', '^hostname\\s+', '') | list | first | default('') }}"
+
+    - name: "Task 1: Get Command Output"
+      cisco.ios.ios_command:
+        commands:
+          - show lldp neighbors
+      register: lldp_output
+    
+    - name: "Task 2: Register Output to Device_Neighbors Variable"
+      set_fact: 
+        device_neighbors: "{{ lldp_output.stdout[0] | parse_cli_textfsm('/home/ttweed98/ansible_example/ansible_plays/ntc-templates/ntc_templates/templates/cisco_ios_show_lldp_neighbors.textfsm') }}"
+    
+    - name: "Task 3: Print Output"
+      debug:
+        msg: "{{ device_neighbors }}"
+    
+    - name: "SAVE HOSTNAME AND CDP NEIGHORS TO FILE"
+      template: src=remote_hosts.j2 dest=/home/ttweed98/ansible_example/ansible_plays/remote_hosts.yml
+      loop: "{{ device_neighbors }}"
+    
+    # - name: "Save Hostname and CDP Neighbors to YAML file"
+    #   copy:
+    #     dest: "/home/ttweed98/ansible_example/ansible_plays/roles/cdp/files/Neighbors.yml"
+    #     content: |
+    #       ---
+    #       Devices:
+    #         Hostname: {{ device_hostname }}
+    #         {% for neighbor in device_neighbors %}
+    #         - NEIGHBOR_NAME: {{ neighbor.NEIGHBOR_NAME }}
+    #             LocalInterface: {{ neighbor.LOCAL_INTERFACE }}
+    #             NEIGHBOR_INTERFACE: {{ neighbor.NEIGHBOR_INTERFACE }}
+    #         {% endfor %}
+    #   loop: "{{ device_neighbors }}"

@@ -1,0 +1,34 @@
+---
+- name: "Task 1: Gather CDP Neighbor Information and Save it to a File"
+  hosts: core
+  gather_facts: false
+  connection: network_cli
+
+  tasks:
+    - name: "RUN PARSER WITH TEXTFSM"
+      ansible.utils.cli_parse:
+        command: "show cdp neighbors detail"
+        parser:
+          name: ansible.utils.textfsm
+          template_path: "/home/ttweed98/ansible_example/ansible_plays/ntc-templates/ntc_templates/templates/cisco_ios_show_cdp_neighbors_detail.textfsm"
+        set_fact: neighbor_data
+    
+    - name: "LIST ATTACHED CISCO DEVICES"
+      set_fact: 
+        IOS: "{{ neighbor_data | selectattr('NEIGHBOR_DESCRIPTION', 'contains', 'Cisco')}}"
+    
+    # - name: "PRINT NEIGHBOR DATA"
+    #   debug:
+    #     msg: "{{ IOS }}"
+    
+    - name: "CREATE A LIST OF NEIGHBOR HOSTS"
+      set_fact:
+        devices: "{{ IOS | map(attribute='NEIGHBOR_NAME') | unique }}"
+    
+    - name: "CREATE REMOTE HOSTS FILE"
+      template: src=remote_hosts.j2 dest=/home/ttweed98/ansible_example/ansible_plays/remote_hosts.yml
+      loop: "{{ devices }}"
+    
+    # - name: "PRINT NEIGHBOR DATA"
+    #   debug:
+    #     msg: "{{ devices }}"

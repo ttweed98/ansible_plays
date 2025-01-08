@@ -1,0 +1,39 @@
+- name: "Task 1: Get Hostname Output"
+  ios_command:
+    commands:
+      - show run | include hostname
+  register: hostname
+
+- name: "Extract Hostname"
+  set_fact:
+    device_hostname: "{{ hostname.stdout_lines[0] | select('search', '^hostname\\s+') | map('regex_replace', '^hostname\\s+', '') | list | first | default('') }}"
+   
+- name: "Task 2: Get CDP Neighbors Output"
+  ios_command:
+    commands:
+      - show cdp neighbors
+  register: cdp_output
+
+- name: "Task 3: Parse CDP Neighbors"
+  textfsm_parser:
+    file: "/home/ttweed98/ansible_example/ansible_plays/roles/cdp/files/cisco_ios_show_cdp_neighbors.textfsm"
+    content: "{{ cdp_output.stdout[0] }}"
+    name: cdp_parsed
+
+- name: "Debug CDP Neighbors Output"
+  debug:
+    var: ansible_facts.cdp_parsed
+
+- name: "Save Hostname and CDP Neighbors to YAML file"
+  copy:
+    dest: "/home/ttweed98/ansible_example/ansible_plays/roles/cdp/files/cdp_neighbors.yml"
+    content: |
+      ---
+      Devices:
+        Hostname: {{ device_hostname }}
+        cdp_neighbors:
+        {% for neighbor in ansible_facts.cdp_parsed %}
+          - NEIGHBOR_NAME: {{ neighbor.NEIGHBOR_NAME }}
+            LocalInterface: {{ neighbor.LOCAL_INTERFACE }}
+            NEIGHBOR_INTERFACE: {{ neighbor.NEIGHBOR_INTERFACE }}
+        {% endfor %}
